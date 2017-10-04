@@ -19,7 +19,7 @@ package com.example.android.bluetoothchat;
 /**
  * Defines several constants used between {@link BluetoothChatService} and the UI.
  */
-public interface Constants {
+public class Constants {
 
     // Message types sent from the BluetoothChatService Handler
     public static final int MESSAGE_STATE_CHANGE = 1;
