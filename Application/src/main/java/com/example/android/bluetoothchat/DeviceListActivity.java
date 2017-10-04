@@ -44,10 +44,7 @@ import java.util.Set;
  */
 public class DeviceListActivity extends Activity {
 
-    /**
-     * Tag for Log
-     */
-    private static final String TAG = "DeviceListActivity";
+    private static final String TAG = DeviceListActivity.class.getSimpleName();
 
     /**
      * Return Intent extra
@@ -164,8 +161,7 @@ public class DeviceListActivity extends Activity {
     /**
      * The on-click listener for all devices in the ListViews
      */
-    private AdapterView.OnItemClickListener mDeviceClickListener
-            = new AdapterView.OnItemClickListener() {
+    private AdapterView.OnItemClickListener mDeviceClickListener = new AdapterView.OnItemClickListener() {
         public void onItemClick(AdapterView<?> av, View v, int arg2, long arg3) {
             // Cancel discovery because it's costly and we're about to connect
             mBtAdapter.cancelDiscovery();
