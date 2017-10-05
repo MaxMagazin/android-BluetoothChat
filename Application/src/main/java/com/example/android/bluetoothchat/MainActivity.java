@@ -40,7 +40,8 @@ public class MainActivity extends FragmentActivity {
 
         if (savedInstanceState == null) {
             FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-            BluetoothChatFragment fragment = new BluetoothChatFragment();
+//            BluetoothChatFragment fragment = new BluetoothChatFragment(); // TODO: 05.10.2017
+            CalculatorFragment fragment = new CalculatorFragment();
             transaction.replace(R.id.sample_content_fragment, fragment);
             transaction.commit();
         }
