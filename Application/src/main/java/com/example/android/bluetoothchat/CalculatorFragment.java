@@ -3,14 +3,17 @@ package com.example.android.bluetoothchat;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.BaseInputConnection;
-import android.widget.Button;
 import android.widget.EditText;
+
+import java.util.Arrays;
 
 /**
  * Base ever calculator
@@ -19,23 +22,16 @@ import android.widget.EditText;
  */
 public class CalculatorFragment extends Fragment {
 
+    private static final String TAG = CalculatorFragment.class.getSimpleName();
+
     private static final String ADD = "+";
     private static final String SUB = "-";
-    private static final String MUL = "*";
-    private static final String DIV = "/";
+    private static final String MUL = "×";
+    private static final String DIV = "÷";
+
+    private static final String SINGS_REGEX = "[" + SUB + ADD + MUL + DIV + "]";
 
     private EditText mResultEditText;
-
-    private Button mOperationAdd;
-    private Button mOperationDiv;
-    private Button mOperationMul;
-    private Button mOperationSub;
-    private Button mOperationEqual;
-
-    private Button mOperationMemoryAdd;
-    private Button mOperationClean;
-    private Button mOperationClearEntry;
-    private Button mOperationChangeSign;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,23 +59,33 @@ public class CalculatorFragment extends Fragment {
         view.findViewById(R.id.number_8).setOnClickListener(mNumbersAndPointClickListener);
         view.findViewById(R.id.number_9).setOnClickListener(mNumbersAndPointClickListener);
         view.findViewById(R.id.point).setOnClickListener(mNumbersAndPointClickListener);
+        view.findViewById(R.id.point).requestFocus();
 
-        mOperationAdd = (Button) view.findViewById(R.id.operation_add);
-        mOperationDiv = (Button) view.findViewById(R.id.operation_div);
-        mOperationMul = (Button) view.findViewById(R.id.operation_mul);
-        mOperationSub = (Button) view.findViewById(R.id.operation_sub);
-        mOperationEqual = (Button) view.findViewById(R.id.operation_equal);
+        view.findViewById(R.id.operation_add).setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_div).setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_mul).setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_sub).setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_equal).setOnClickListener(mOperationOrderClickListener);
 
-        mOperationAdd.setOnClickListener(mOperationOrderClickListener);
-        mOperationDiv.setOnClickListener(mOperationOrderClickListener);
-        mOperationMul.setOnClickListener(mOperationOrderClickListener);
-        mOperationSub.setOnClickListener(mOperationOrderClickListener);
-        mOperationEqual.setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_clean).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mResultEditText.setText("");
+            }
+        });
 
-        mOperationMemoryAdd = (Button) view.findViewById(R.id.operation_memory_add);
-        mOperationClean = (Button) view.findViewById(R.id.operation_clean);
-        mOperationClearEntry = (Button) view.findViewById(R.id.operation_clear_entry);
-        mOperationChangeSign = (Button) view.findViewById(R.id.operation_change_sign);
+        view.findViewById(R.id.operation_clear_entry).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Editable text = mResultEditText.getText();
+                if (text.length() > 0) {
+                    BaseInputConnection inputConnection = new BaseInputConnection(mResultEditText, true);
+                    inputConnection.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+                }
+            }
+        });
+        view.findViewById(R.id.operation_memory_add).setOnClickListener(mOperationOrderClickListener);
+        view.findViewById(R.id.operation_change_sign).setOnClickListener(mOperationOrderClickListener);
     }
 
     private View.OnClickListener mNumbersAndPointClickListener = new View.OnClickListener() {
@@ -123,34 +129,76 @@ public class CalculatorFragment extends Fragment {
         public void onClick(View v) {
             String currentValue = mResultEditText.getText().toString();
 
-            boolean hasOperationInside = currentValue.contains(ADD) || currentValue.contains(SUB)
-                    || currentValue.contains(MUL) || currentValue.contains(DIV);
+            boolean hasOperationInside = hasOperationSignInside(currentValue);
 
-            if (hasOperationInside) {
-                calculateAndSetResult();
-            }
 
-            String charStr = null;
             switch (v.getId()) {
                 case R.id.operation_equal:
+                    calculateAndSetResult();
+
+                    String[] result = currentValue.split(SINGS_REGEX);
+                    Log.d(TAG, "onClick: " + Arrays.toString(result));
                     break;
 
-
-                case R.id.operation_add:
-                    break;
-                case R.id.operation_sub:
-                    break;
-                case R.id.operation_mul:
-                    break;
-                case R.id.operation_div:
-                    break;
+                case R.id.operation_add: addOperationSignToResultView(ADD); break;
+                case R.id.operation_sub: addOperationSignToResultView(SUB); break;
+                case R.id.operation_mul: addOperationSignToResultView(MUL); break;
+                case R.id.operation_div: addOperationSignToResultView(DIV); break;
             }
         }
 
-        private void calculateAndSetResult() {
+        private String calculateAndSetResult() {
 
+            return null;
         }
     };
 
+    private boolean hasOperationSignInside(String s) {
+        return s.contains(ADD) || s.contains(SUB) || s.contains(MUL) || s.contains(DIV);
+    }
+
+    private void addOperationSignToResultView(String newOpSign) {
+        if (mResultEditText == null) {
+            return;
+        }
+
+        Editable currentValue = mResultEditText.getText();
+
+        int selectionStart = mResultEditText.getSelectionStart();
+        int selectionEnd = mResultEditText.getSelectionEnd();
+
+        // cursor is in the beginning (applies also for empty string)
+        if (selectionStart == 0) {
+            return;
+        }
+
+        // check if the cursor/selection borders on any operation sign, if yes we update it
+        char leftBorderChar = currentValue.charAt(selectionStart - 1);
+
+        char rightBorderChar = 0;
+        if (selectionEnd < currentValue.length()) {
+            rightBorderChar = currentValue.charAt(selectionEnd);
+        }
+
+        if (isCharAnOperationSign(leftBorderChar)) {
+            currentValue.replace(selectionStart - 1, selectionEnd, newOpSign);
+
+        } else if (rightBorderChar != 0 && isCharAnOperationSign(rightBorderChar)) {
+            currentValue.replace(selectionStart, selectionEnd + 1, newOpSign);
+
+            // if we have selection without sign borders, we just replace
+        } else if (selectionStart != selectionEnd) {
+            currentValue.replace(selectionStart, selectionEnd, newOpSign);
+
+            //normal case: we just add a sign
+        } else {
+            currentValue.insert(selectionStart, newOpSign);
+        }
+    }
+
+    private boolean isCharAnOperationSign(char c) {
+        String charString = new String(new char[]{c});
+        return hasOperationSignInside(charString);
+    }
 
 }
