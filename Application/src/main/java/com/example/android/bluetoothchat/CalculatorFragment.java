@@ -1,5 +1,6 @@
 package com.example.android.bluetoothchat;
 
+import android.database.CursorIndexOutOfBoundsException;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -13,6 +14,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.BaseInputConnection;
 import android.widget.EditText;
 
+import java.text.DecimalFormat;
 import java.util.Arrays;
 
 /**
@@ -24,12 +26,10 @@ public class CalculatorFragment extends Fragment {
 
     private static final String TAG = CalculatorFragment.class.getSimpleName();
 
-    private static final String ADD = "+";
-    private static final String SUB = "-";
-    private static final String MUL = "×";
-    private static final String DIV = "÷";
-
-    private static final String SINGS_REGEX = "[" + SUB + ADD + MUL + DIV + "]";
+    private static final char ADD = '+';
+    private static final char SUB = '-';
+    private static final char MUL = '×';
+    private static final char DIV = '÷';
 
     private EditText mResultEditText;
 
@@ -93,16 +93,66 @@ public class CalculatorFragment extends Fragment {
         public void onClick(View v) {
             String currentValue = mResultEditText.getText().toString();
 
+            BaseInputConnection inputConnection = new BaseInputConnection(mResultEditText, true);
+
             KeyEvent keyEvent = null;
 
             switch (v.getId()) {
                 case R.id.point:
-                    if (!currentValue.contains(",") && !currentValue.isEmpty()) {
+                    int selStart = mResultEditText.getSelectionStart();
+
+                    if (!TextUtils.isEmpty(currentValue)) {
+                        int selEnd = mResultEditText.getSelectionEnd();
+
+                        if (selStart != selEnd) { //remove selection
+                            currentValue = new StringBuilder(currentValue).replace(selStart, selEnd, "").toString();
+                        }
+
+                        if (hasOperationSignInside(currentValue)) {
+
+                            int numberStartIndex, numberEndIndex;
+                            numberStartIndex = numberEndIndex = selStart;
+
+                            char[] chars = currentValue.toCharArray();
+
+                            // look for the startIndex of number
+                            for (int i = selStart - 1; i >= 0; i--) {
+                                if (!isCharAnOperationSign(chars[i])) {
+                                    numberStartIndex = i;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            //look for the endIndex of number
+                            for (int i = selStart; i < currentValue.length(); i++) {
+                                if (!isCharAnOperationSign(chars[i])) {
+                                    numberEndIndex = i + 1;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            // reduce only to the number
+                            currentValue =  currentValue.substring(numberStartIndex, numberEndIndex);
+
+                            //update selStart
+                            selStart -= numberStartIndex;
+                        }
+                    }
+
+                    if (!currentValue.contains(",")) {
+                        if (selStart == 0) { // add leading 0
+                            inputConnection.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_0));
+                            // this action will also remove a selection, if it was there
+                        }
+
                         keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_COMMA);
                     }
+
                     break;
                 case R.id.number_0:
-                    if (!TextUtils.isEmpty(currentValue)) {
+                    if (TextUtils.isEmpty(currentValue)) {
                         keyEvent = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_0);
                     }
                     break;
@@ -118,10 +168,10 @@ public class CalculatorFragment extends Fragment {
             }
 
             if (keyEvent != null) {
-                BaseInputConnection inputConnection = new BaseInputConnection(mResultEditText, true);
                 inputConnection.sendKeyEvent(keyEvent);
             }
         }
+
     };
 
     private View.OnClickListener mOperationOrderClickListener = new View.OnClickListener() {
@@ -134,10 +184,9 @@ public class CalculatorFragment extends Fragment {
 
             switch (v.getId()) {
                 case R.id.operation_equal:
-                    calculateAndSetResult();
+                    calculateAndSetResult(currentValue);
 
-                    String[] result = currentValue.split(SINGS_REGEX);
-                    Log.d(TAG, "onClick: " + Arrays.toString(result));
+
                     break;
 
                 case R.id.operation_add: addOperationSignToResultView(ADD); break;
@@ -147,17 +196,28 @@ public class CalculatorFragment extends Fragment {
             }
         }
 
-        private String calculateAndSetResult() {
+        private void calculateAndSetResult(String currentValue) {
+            currentValue = currentValue.replaceAll(",", ".");
+            double result = eval(currentValue);
 
-            return null;
+            DecimalFormat df = new DecimalFormat("###.###########");
+            String calcResult = df.format(result);
+            mResultEditText.setText("");
+            mResultEditText.append(calcResult.replaceAll("\\.", ","));
         }
     };
 
     private boolean hasOperationSignInside(String s) {
-        return s.contains(ADD) || s.contains(SUB) || s.contains(MUL) || s.contains(DIV);
+        char[] chars = s.toCharArray();
+        for (char c : chars) {
+            if (isCharAnOperationSign(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private void addOperationSignToResultView(String newOpSign) {
+    private void addOperationSignToResultView(char newOpSign) {
         if (mResultEditText == null) {
             return;
         }
@@ -181,24 +241,101 @@ public class CalculatorFragment extends Fragment {
         }
 
         if (isCharAnOperationSign(leftBorderChar)) {
-            currentValue.replace(selectionStart - 1, selectionEnd, newOpSign);
+            currentValue.replace(selectionStart - 1, selectionEnd, String.valueOf(newOpSign));
 
         } else if (rightBorderChar != 0 && isCharAnOperationSign(rightBorderChar)) {
-            currentValue.replace(selectionStart, selectionEnd + 1, newOpSign);
+            currentValue.replace(selectionStart, selectionEnd + 1, String.valueOf(newOpSign));
 
             // if we have selection without sign borders, we just replace
         } else if (selectionStart != selectionEnd) {
-            currentValue.replace(selectionStart, selectionEnd, newOpSign);
+            currentValue.replace(selectionStart, selectionEnd, String.valueOf(newOpSign));
 
             //normal case: we just add a sign
         } else {
-            currentValue.insert(selectionStart, newOpSign);
+            currentValue.insert(selectionStart, String.valueOf(newOpSign));
         }
     }
 
     private boolean isCharAnOperationSign(char c) {
-        String charString = new String(new char[]{c});
-        return hasOperationSignInside(charString);
+        return c == ADD || c == SUB || c == MUL || c == DIV;
     }
 
+    public double eval(final String str) {
+        return new Object() {
+            int pos = -1, ch;
+
+            void nextChar() {
+                ch = (++pos < str.length()) ? str.charAt(pos) : -1;
+            }
+
+            boolean eat(int charToEat) {
+                while (ch == ' ') nextChar();
+                if (ch == charToEat) {
+                    nextChar();
+                    return true;
+                }
+                return false;
+            }
+
+            double parse() {
+                nextChar();
+                double x = parseExpression();
+                if (pos < str.length()) throw new RuntimeException("Unexpected: " + (char) ch);
+                return x;
+            }
+
+            // Grammar:
+            // expression = term | expression `+` term | expression `-` term
+            // term = factor | term `*` factor | term `/` factor
+            // factor = `+` factor | `-` factor | `(` expression `)` | number | functionName factor | factor `^` factor
+
+            double parseExpression() {
+                double x = parseTerm();
+                for (; ; ) {
+                    if (eat(ADD)) x += parseTerm(); // addition
+                    else if (eat(SUB)) x -= parseTerm(); // subtraction
+                    else return x;
+                }
+            }
+
+            double parseTerm() {
+                double x = parseFactor();
+                for (; ; ) {
+                    if (eat(MUL)) x *= parseFactor(); // multiplication
+                    else if (eat(DIV)) x /= parseFactor(); // division
+                    else return x;
+                }
+            }
+
+            double parseFactor() {
+                if (eat(ADD)) return parseFactor(); // unary plus
+                if (eat(SUB)) return -parseFactor(); // unary minus
+
+                double x;
+                int startPos = this.pos;
+                if (eat('(')) { // parentheses
+                    x = parseExpression();
+                    eat(')');
+                } else if ((ch >= '0' && ch <= '9') || ch == '.') { // numbers
+                    while ((ch >= '0' && ch <= '9') || ch == '.') nextChar();
+                    x = Double.parseDouble(str.substring(startPos, this.pos));
+                } else if (ch >= 'a' && ch <= 'z') { // functions
+                    while (ch >= 'a' && ch <= 'z') nextChar();
+                    String func = str.substring(startPos, this.pos);
+                    x = parseFactor();
+                    if (func.equals("sqrt")) x = Math.sqrt(x);
+                    else if (func.equals("sin")) x = Math.sin(Math.toRadians(x));
+                    else if (func.equals("cos")) x = Math.cos(Math.toRadians(x));
+                    else if (func.equals("tan")) x = Math.tan(Math.toRadians(x));
+                    else throw new RuntimeException("Unknown function: " + func);
+                } else {
+                    throw new RuntimeException("Unexpected: " + (char) ch);
+                }
+
+                if (eat('^')) x = Math.pow(x, parseFactor()); // exponentiation
+
+                return x;
+            }
+        }.parse();
+    }
 }
